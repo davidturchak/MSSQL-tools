@@ -1,8 +1,13 @@
+[CmdletBinding()]
 param (
+    [Parameter(Mandatory=$true)]
     [string]$databaseName,
     [string]$serverInstance = $env:COMPUTERNAME,
+    [Parameter(Mandatory=$true)]
     [string]$dataFilePath = "C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA\",
+    [Parameter(Mandatory=$true)]
     [string]$logFilePath = "C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA\",
+    [Parameter(Mandatory=$true)]
     [string]$backupFilePath = "C:\tools\SQLSTF\tpch.bak"
 )
 
@@ -103,9 +108,32 @@ function Restore-DB {
     }
 }
 
-# Call SQL Setup
-Install-SqlServer
-# Call DB restore
-Restore-DB
+
+
+function Test-SqlServerInstalled {
+    $sqlServiceNames = @(
+        'MSSQLSERVER' # Default instance
+    )
+
+    foreach ($serviceName in $sqlServiceNames) {
+        $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+        if ($service -eq $null) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+
+if (Test-SqlServerInstalled) {
+    Write-Host "SQL Server is installed. Going to restore DB"
+    Restore-DB
+} else {
+    Write-Host "SQL Server is no installed. Going to install SQLSERVER and then will restore the DB"
+    Install-SqlServer
+    Restore-DB
+}
+
 exit 0
 
