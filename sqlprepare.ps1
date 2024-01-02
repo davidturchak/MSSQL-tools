@@ -34,22 +34,27 @@ function Install-SqlServer {
         Start-Sleep -Seconds 2
 
         # Download SQL ISO
+        Write-Host "Starting download SQL server iso image"
         Start-BitsTransfer -Source $IsoPath -Destination $dist
         $isoimg = Join-Path $dist 'SQLServer2019-x64-ENU-Dev.iso'
         Start-Sleep -Seconds 2
-
+        Write-Host "Mounting ISO"
         $volume = Mount-DiskImage $isoimg -StorageType ISO -PassThru | Get-Volume
         $sql_drive = $volume.DriveLetter + ':'
         Start-Sleep -Seconds 2
 
         # Start SQL server installation
+        Write-Host "Starting SQL server installation"
         Start-Process (Join-Path $sql_drive 'setup.exe') -ArgumentList "/ConfigurationFile=$dist\ConfigurationFile.ini" -NoNewWindow -Wait
+        Write-Host "Dismounting ISO"
         Dismount-DiskImage $isoimg
 
         # Start Studio installation
         $setupfile = Join-Path $dist 'ssmsfullsetup.exe'
+        Write-Host "Starting download of SQL SMS"
         Start-BitsTransfer -Source $ssmspath -Destination $setupfile
         Start-Sleep -Seconds 2
+        Write-Host "Starting SQL SMS installation"
         Start-Process $setupfile -ArgumentList "/install", "/quiet", "/norestart" -NoNewWindow -Wait
     }
     catch {
@@ -70,10 +75,12 @@ function Restore-DB {
 
     # Check if data and log directories exist, create them if not
     if (-not (Test-Path $dataFilePath)) {
+        Write-Host "Path $dataFilePath does not exist. Creating"
         New-Item -ItemType Directory -Path $dataFilePath -Force | Out-Null
     }
 
     if (-not (Test-Path $logFilePath)) {
+        Write-Host "Path $logFilePath does not exist. Creating"
         New-Item -ItemType Directory -Path $logFilePath -Force | Out-Null
     }
     try {
@@ -95,7 +102,7 @@ function Restore-DB {
         Write-Host "Database '$databaseName' restored successfully on '$serverInstance' from backup file '$backupFilePath'."
         }
         else {
-            Write-Error "File  '$backupFilePath' can't ne found!"
+            Write-Error "File  '$backupFilePath' can't ne found! Exiting"
             exit 1
         }
     }
