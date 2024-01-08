@@ -1,4 +1,3 @@
-[CmdletBinding()]
 param (
     [Parameter(Mandatory=$true)]
     [string]$databaseName,
@@ -7,8 +6,8 @@ param (
     [string]$dataFilePath = "C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA\",
     [Parameter(Mandatory=$true)]
     [string]$logFilePath = "C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA\",
-    [Parameter(Mandatory=$true)]
-    [string]$backupFilePath = "C:\tools\SQLSTF\tpch.bak"
+    [string]$backupFilePath = "C:\tools\SQLSTF\tpch.zip",
+    [string]$dist = "C:\Tools\SQLSTF\"
 )
 
 function Show-Help {
@@ -25,7 +24,6 @@ function Install-SqlServer {
     param (
         [string]$ssmspath = "https://aka.ms/ssmsfullsetup",
         [string]$IsoPath = "https://download.microsoft.com/download/7/c/1/7c14e92e-bdcb-4f89-b7cf-93543e7112d1/SQLServer2019-x64-ENU-Dev.iso",
-        [string]$dist = "C:\Tools\SQLSTF\",
         [string]$admuser = "`"$(whoami)`""
     )
 
@@ -86,8 +84,13 @@ function Restore-DB {
     try {
         # Check if backup file path is provided for restore
         if ($backupFilePath) {
-            # SQL query to restore database from backup
-            $query = "RESTORE DATABASE [$databaseName] FROM DISK = '$backupFilePath' WITH REPLACE, MOVE 'tpch' TO '$dataFilePath\$databaseName.mdf', MOVE 'tpch_log' TO '$logFilePath\$databaseName.ldf';"
+        # Extracting the backup zip file
+        Write-Host "Extracting the backup archive: $backupFilePath to $dist"
+        Expand-Archive -Path $backupFilePath -DestinationPath $dist -Force
+        $ExtractedBackup = (Join-Path $dist 'tpch.bak')
+        Write-Host $ExtractedBackup
+        # SQL query to restore database from backup
+        $query = "RESTORE DATABASE [$databaseName] FROM DISK = '$ExtractedBackup' WITH REPLACE, MOVE 'tpch' TO '$dataFilePath\$databaseName.mdf', MOVE 'tpch_log' TO '$logFilePath\$databaseName.ldf';"
 
         # Create SQL connection
         $connection = New-Object System.Data.SqlClient.SqlConnection
@@ -115,31 +118,29 @@ function Restore-DB {
     }
 }
 
-
-
 function Test-SqlServerInstalled {
-    $sqlServiceNames = @(
-        'MSSQLSERVER' # Default instance
-    )
 
-    foreach ($serviceName in $sqlServiceNames) {
-        $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-        if ($service -eq $null) {
-            return $false
-        }
+    $service = Get-Service -Name 'MSSQLSERVER' -ErrorAction SilentlyContinue
+    if ($service -eq $null) {
+        return $false
     }
-
     return $true
 }
-
 
 if (Test-SqlServerInstalled) {
     Write-Host "SQL Server is installed. Going to restore DB"
     Restore-DB
 } else {
-    Write-Host "SQL Server is no installed. Going to install SQLSERVER and then will restore the DB"
+    Write-Host "SQL Server is no installed. Installing it first"
     Install-SqlServer
-    Restore-DB
+    if (Test-SqlServerInstalled) {
+        Write-Host "Now when the SQL Server is running going to restore DB"
+        Restore-DB
+    }
+    else {
+        Write-Host "Can't detect SQL service after installation. Exiting"
+        exit 1
+    }
 }
 
 exit 0
