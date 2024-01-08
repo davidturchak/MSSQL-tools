@@ -1,35 +1,17 @@
-SQL Server Database Deployment Script
-This PowerShell script is designed to simplify the process of deploying and restoring SQL Server databases. It includes functionality to install SQL Server if it is not already installed and then restores a specified database from a backup file.
+# Create-SqlDatabase.ps1
 
-Prerequisites
-Before running this script, ensure the following:
+## Introduction
 
-SQL Server is not installed or the existing installation is not running.
-PowerShell execution policy allows script execution.
-Usage
-powershell
-Copy code
-.\Create-SqlDatabase.ps1 -databaseName <DatabaseName>  [-dataFilePath <DataFilePath>] [-logFilePath <LogFilePath>] [-backupFilePath <BackupFilePath>]
-Parameters:
--databaseName: The name of the database to create or restore (required).
--dataFilePath: Path for the data file (default: C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA).
--logFilePath: Path for the log file (default: C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA).
--backupFilePath: Path to the backup file for restore (required for restore).
--dist: Path for storing temporary files (default: C:\Tools\SQLSTF).
-Example
-powershell
-Copy code
-.\Create-SqlDatabase.ps1 -databaseName MyDatabase -serverInstance MyServer -backupFilePath C:\Path\To\BackupFile.bak
-Features
-Installs SQL Server if not already installed.
-Restores a specified database from a backup file.
-Customizable data and log file paths.
-Option to specify the SQL Server instance.
-Checks for required parameters and provides usage help.
-Notes
-Ensure the script is executed with the necessary permissions.
-Backup files should be in .bak format.
-The script assumes Windows authentication for SQL Server.
-Feel free to customize the script according to your specific needs and environment. If you encounter any issues or have suggestions for improvements, please submit an issue.
+This PowerShell script is designed to facilitate the creation or restoration of a SQL Server database. It includes functions for installing SQL Server, restoring a database from a backup file, and checking the installation status.
 
-Happy deploying!
+## Prerequisites
+
+- PowerShell 5.1 or later
+- Internet access to SQL Server 2019 ISO: [Download SQL Server 2019 ISO](https://download.microsoft.com/download/7/c/1/7c14e92e-bdcb-4f89-b7cf-93543e7112d1/SQLServer2019-x64-ENU-Dev.iso)
+- Internet access to SQL Server Management Studio (SSMS) setup: [Download SSMS](https://aka.ms/ssmsfullsetup)
+- Ensure BITS (Background Intelligent Transfer Service) is available
+
+## Usage
+
+```powershell
+.\Create-SqlDatabase.ps1 -databaseName <DatabaseName> [-serverInstance <ServerInstance>] [-dataFilePath <DataFilePath>] [-logFilePath <LogFilePath>] [-backupFilePath <BackupFilePath>]
