@@ -1,25 +1,18 @@
 param (
-    [Parameter(Mandatory=$true)]
     [string]$databaseName,
-    [string]$serverInstance = $env:COMPUTERNAME,
-    [Parameter(Mandatory=$true)]
-    [string]$dataFilePath = "C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA\",
-    [Parameter(Mandatory=$true)]
-    [string]$logFilePath = "C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA\",
     [string]$backupFilePath = "C:\tools\SQLSTF\tpch.zip",
     [string]$dist = "C:\Tools\SQLSTF\"
 )
 
+
 function Show-Help {
-    Write-Host "Usage: Create-SqlDatabase.ps1 -databaseName <DatabaseName> [-serverInstance <ServerInstance>] [-dataFilePath <DataFilePath>] [-logFilePath <LogFilePath>] [-backupFilePath <BackupFilePath>]"
-    Write-Host "  -databaseName     : The name of the database to create or restore (required)"
-    Write-Host "  -serverInstance   : SQL Server instance name (default: %HOSTNAME%)"
-    Write-Host "  -dataFilePath     : Path for the data file (default: C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA\)"
-    Write-Host "  -logFilePath      : Path for the log file (default: C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA\)"
+    Write-Host "Usage: Create-SqlDatabase.ps1 [-databaseName <DatabaseName>] [-serverInstance <ServerInstance>] [-dataFilePath <DataFilePath>] [-logFilePath <LogFilePath>] [-backupFilePath <BackupFilePath>]"
+    Write-Host "  -databaseName     : The name of the database to create or restore"
     Write-Host "  -backupFilePath   : Path to the backup file for restore (required for restore)"
     exit 1
 }
 
+$serverInstance = $env:COMPUTERNAME
 function Install-SqlServer {
     param (
         [string]$ssmspath = "https://aka.ms/ssmsfullsetup",
@@ -61,11 +54,6 @@ function Install-SqlServer {
     }
 }
 
-# Check if required parameters are provided
-if (-not $databaseName) {
-    Show-Help
-}
-
 function Restore-DB {
 
     # Connection string using Windows authentication
@@ -82,31 +70,29 @@ function Restore-DB {
         New-Item -ItemType Directory -Path $logFilePath -Force | Out-Null
     }
     try {
-        # Check if backup file path is provided for restore
         if ($backupFilePath) {
-        # Extracting the backup zip file
-        Write-Host "Extracting the backup archive: $backupFilePath to $dist"
-        Expand-Archive -Path $backupFilePath -DestinationPath $dist -Force
-        $ExtractedBackup = (Join-Path $dist 'tpch.bak')
-        Write-Host $ExtractedBackup
-        # SQL query to restore database from backup
-        $query = "RESTORE DATABASE [$databaseName] FROM DISK = '$ExtractedBackup' WITH REPLACE, MOVE 'tpch' TO '$dataFilePath\$databaseName.mdf', MOVE 'tpch_log' TO '$logFilePath\$databaseName.ldf';"
+            # Extracting the backup zip file
+            Write-Host "Extracting the backup archive: $backupFilePath to $dist"
+            Expand-Archive -Path $backupFilePath -DestinationPath $dist -Force
+            $ExtractedBackup = (Join-Path $dist 'tpch.bak')
+            Write-Host $ExtractedBackup
+            # SQL query to restore database from backup
+            $query = "RESTORE DATABASE [$databaseName] FROM DISK = '$ExtractedBackup' WITH REPLACE, MOVE 'tpch' TO '$dataFilePath\$databaseName.mdf', MOVE 'tpch_log' TO '$logFilePath\$databaseName.ldf';"
 
-        # Create SQL connection
-        $connection = New-Object System.Data.SqlClient.SqlConnection
-        $connection.ConnectionString = $connectionString
-        $connection.Open()
+            # Create SQL connection
+            $connection = New-Object System.Data.SqlClient.SqlConnection
+            $connection.ConnectionString = $connectionString
+            $connection.Open()
 
-        # Execute the query
-        $command = $connection.CreateCommand()
-        $command.CommandText = $query
-        $command.ExecuteNonQuery()
+            # Execute the query
+            $command = $connection.CreateCommand()
+            $command.CommandText = $query
+            $command.ExecuteNonQuery()
 
-        Write-Host "Database '$databaseName' restored successfully on '$serverInstance' from backup file '$backupFilePath'."
+            Write-Host "Database '$databaseName' restored successfully on '$serverInstance' from backup file '$backupFilePath'."
         }
         else {
-            Write-Error "File  '$backupFilePath' can't ne found! Exiting"
-            exit 1
+            Write-Host "Backup file path not provided. Skipping restore."
         }
     }
     catch {
@@ -127,21 +113,99 @@ function Test-SqlServerInstalled {
     return $true
 }
 
-if (Test-SqlServerInstalled) {
-    Write-Host "SQL Server is installed. Going to restore DB"
-    Restore-DB
-} else {
-    Write-Host "SQL Server is no installed. Installing it first"
-    Install-SqlServer
-    if (Test-SqlServerInstalled) {
-        Write-Host "Now when the SQL Server is running going to restore DB"
-        Restore-DB
+
+function Initialize-SilkSdpDisks {
+        # Define the registry key path
+    $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+
+    # Check if the Explorer key exists, if not, create it
+    if (-not (Test-Path $regPath)) {
+        New-Item -Path $regPath -Force | Out-Null
     }
-    else {
-        Write-Host "Can't detect SQL service after installation. Exiting"
+
+    # Set the value of NoDriveTypeAutoRun to disable the popup
+    Set-ItemProperty -Path $regPath -Name "NoDriveTypeAutoRun" -Value 0xFF
+
+    # Get disks with FriendlyName 'SILK SDP' and size greater than 100GB
+    $disksOver100GB = Get-Disk -FriendlyName 'SILK SDP' | Where-Object { $_.Size -gt (100GB) }
+
+    # Check if exactly 2 disks are detected, exit with an error message if not
+    if ($disksOver100GB.Count -ne 2) {
+        Write-Error "Exactly 2 disks with FriendlyName 'SILK SDP' and size greater than 100GB are required."
         exit 1
     }
+
+    # Define labels
+    $labels = @("SQL DATA", "SQL LOG")
+
+    # Initialize counter
+    $counter = 0
+
+    # Array to store drive letters
+    $driveLetters = @()
+
+    # Iterate through each disk
+    foreach ($disk in $disksOver100GB) {
+        # Check if the disk is already initialized
+        if (-not ($disk | Get-Partition)) {
+            # Initialize the disk if it's not initialized
+            Initialize-Disk -Number $disk.Number -PartitionStyle GPT -PassThru
+        }
+
+        # Get the disk number again to make sure it's updated after initialization
+        $disk = Get-Disk -Number $disk.Number
+
+        # Create a partition, format with NTFS 64K allocation unit size, and assign label
+        $partition = New-Partition -DiskNumber $disk.Number -AssignDriveLetter -UseMaximumSize | 
+        Format-Volume -FileSystem NTFS -AllocationUnitSize 64KB -NewFileSystemLabel $labels[$counter] -Force -Confirm:$false
+
+        # Store drive letter
+        $driveLetters += $partition.DriveLetter
+
+        # Increment counter
+        $counter++
+    }
+
+    # Return drive letters on success
+    return $driveLetters
 }
 
-exit 0
+# Check if any parameter is provided, if yes, make all parameters mandatory
+if ($PSBoundParameters.Count -gt 0) {
+    if (-not $databaseName -or -not $backupFilePath) {
+        Write-Host "Error: If any parameter is provided, both -databaseName and -backupFilePath are mandatory."
+        exit 1
+    }
+    $assignedDriveLetters = Initialize-SilkSdpDisks
+    $dataFilePath = "{0}:\DATA\" -f $assignedDriveLetters[0].ToString()
+    $logFilePath = "{0}:\LOG\" -f $assignedDriveLetters[1].ToString()
+    Write-Host $dataFilePath $logFilePath
 
+    if (Test-SqlServerInstalled) {
+        Write-Host "SQL Server is installed."
+        Restore-DB
+    } else {
+        Write-Host "SQL Server is not installed. Installing it first"
+        Install-SqlServer
+        if (Test-SqlServerInstalled) {
+            Write-Host "Now when the SQL Server is running going to restore DB"
+            Restore-DB
+        }
+        else {
+            Write-Host "Can't detect SQL service after installation. Exiting"
+            exit 1
+        }
+    }
+
+}
+else {
+    if (Test-SqlServerInstalled) {
+        Write-Host "SQL Server is installed and running"
+
+    }
+    else {
+        Write-Host "SQL Server is not installed. Installing..."
+        Install-SqlServer
+    }
+}
+exit 0
