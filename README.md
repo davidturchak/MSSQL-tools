@@ -19,6 +19,4 @@ This PowerShell script is designed to facilitate the creation or restoration of 
 # Parameters
 
 - `databaseName`: The name of the database to create or restore (required).
-- `dataFilePath`: Path for the data file (default: `C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA\`).
-- `logFilePath`: Path for the log file (default: `C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA\`).
 - `backupFilePath`: Path to the backup file for restore (required for restore).
