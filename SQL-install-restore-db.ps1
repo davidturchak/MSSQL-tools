@@ -107,7 +107,7 @@ function Restore-DB {
 function Test-SqlServerInstalled {
 
     $service = Get-Service -Name 'MSSQLSERVER' -ErrorAction SilentlyContinue
-    if ($service -eq $null) {
+    if ($null -eq $service) {
         return $false
     }
     return $true
