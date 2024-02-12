@@ -23,12 +23,14 @@ function Install-SqlServer {
     try {
         Add-Content -Path (Join-Path $dist 'ConfigurationFile.ini') -Value "`r`nSQLSYSADMINACCOUNTS=$admuser"
         Start-Sleep -Seconds 2
-
-        # Download SQL ISO
-        Write-Host "Starting download SQL server iso image"
-        Start-BitsTransfer -Source $IsoPath -Destination $dist
         $isoimg = Join-Path $dist 'SQLServer2019-x64-ENU-Dev.iso'
-        Start-Sleep -Seconds 2
+        if (Test-Path $isoimg) {
+            Write-Host "iso file exists. Continue"
+        } else {
+            Write-Host "iso file does not exist. Downloading.."
+            Start-BitsTransfer -Source $IsoPath -Destination $dist
+            Start-Sleep -Seconds 2
+        }
         Write-Host "Mounting ISO"
         $volume = Mount-DiskImage $isoimg -StorageType ISO -PassThru | Get-Volume
         $sql_drive = $volume.DriveLetter + ':'
@@ -42,9 +44,13 @@ function Install-SqlServer {
 
         # Start Studio installation
         $setupfile = Join-Path $dist 'ssmsfullsetup.exe'
-        Write-Host "Starting download of SQL SMS"
-        Start-BitsTransfer -Source $ssmspath -Destination $setupfile
-        Start-Sleep -Seconds 2
+        if (Test-Path $setupfile) {
+            Write-Host "Setup SQL SMS file exist. Continue "
+        } else {
+            Write-Host "Setup SQL SMS file does not exist. Downloading.."
+            Start-BitsTransfer -Source $ssmspath -Destination $setupfile
+            Start-Sleep -Seconds 2
+        }
         Write-Host "Starting SQL SMS installation"
         Start-Process $setupfile -ArgumentList "/install", "/quiet", "/norestart" -NoNewWindow -Wait
     }

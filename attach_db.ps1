@@ -1,5 +1,5 @@
 param (
-    [string]$DatabaseName = "1david"
+    [string]$DatabaseName = "david"
 )
 
 # File paths
