@@ -6,7 +6,8 @@ param (
 
 
 function Show-Help {
-    Write-Host "Usage: Create-SqlDatabase.ps1 [-databaseName <DatabaseName>] [-serverInstance <ServerInstance>] [-dataFilePath <DataFilePath>] [-logFilePath <LogFilePath>] [-backupFilePath <BackupFilePath>]"
+    Write-Host "Usage: Create-SqlDatabase.ps1 [-databaseName <DatabaseName>] [-backupFilePath <BackupFilePath>]"
+    Write-Host "If no arguments provided will install SQL and SMS only"
     Write-Host "  -databaseName     : The name of the database to create or restore"
     Write-Host "  -backupFilePath   : Path to the backup file for restore (required for restore)"
     exit 1
