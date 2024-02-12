@@ -1,9 +1,9 @@
 param (
     [string]$databaseName,
-    [string]$backupFilePath = "C:\tools\SQLSTF\tpch.zip",
-    [string]$dist = "C:\Tools\SQLSTF\"
+    [string]$backupFilePath = "C:\tools\SQLSTF\tpch.zip"
 )
 
+$dist = "C:\Tools\SQLSTF\"
 
 function Show-Help {
     Write-Host "Usage: Create-SqlDatabase.ps1 [-databaseName <DatabaseName>] [-backupFilePath <BackupFilePath>]"
@@ -154,25 +154,31 @@ function Initialize-SilkSdpDisks {
     # Iterate through each disk
     foreach ($disk in $disksOver100GB) {
         # Check if the disk is already initialized
-        if (-not ($disk | Get-Partition)) {
-            # Initialize the disk if it's not initialized
-            Initialize-Disk -Number $disk.Number -PartitionStyle GPT -PassThru
+        
+        if ($disk | Get-Partition) {
+            # Clean disk if have partitions
+            Clear-Disk -InputObject $disk -RemoveData -Confirm:$false
         }
-
+        Initialize-Disk -Number $disk.Number -PartitionStyle GPT -PassThru
         # Get the disk number again to make sure it's updated after initialization
         $disk = Get-Disk -Number $disk.Number
 
         # Create a partition, format with NTFS 64K allocation unit size, and assign label
         $partition = New-Partition -DiskNumber $disk.Number -AssignDriveLetter -UseMaximumSize | 
         Format-Volume -FileSystem NTFS -AllocationUnitSize 64KB -NewFileSystemLabel $labels[$counter] -Force -Confirm:$false
-
-        # Store drive letter
-        $driveLetters += $partition.DriveLetter
-
+        Start-Sleep 1
         # Increment counter
         $counter++
     }
 
+    # Get the last two partitions created above from Win32_DiskPartition class
+    $lastTwoPartitions = Get-WmiObject -Class Win32_DiskPartition | Select-Object -Last 2
+
+    # Iterate through each partition and extract the drive letter
+    foreach ($partition in $lastTwoPartitions) {
+        $driveLetter = (Get-WmiObject -Query "ASSOCIATORS OF {Win32_DiskPartition.DeviceID='$($partition.DeviceID)'} WHERE AssocClass=Win32_LogicalDiskToPartition" | Select-Object -ExpandProperty DeviceID) -replace '\\.*'
+        $driveLetters += $driveLetter
+    }
     # Return drive letters on success
     return $driveLetters
 }
@@ -183,10 +189,17 @@ if ($PSBoundParameters.Count -gt 0) {
         Write-Host "Error: If any parameter is provided, both -databaseName and -backupFilePath are mandatory."
         exit 1
     }
-    $assignedDriveLetters = Initialize-SilkSdpDisks
-    $dataFilePath = "{0}:\DATA\" -f $assignedDriveLetters[0].ToString()
-    $logFilePath = "{0}:\LOG\" -f $assignedDriveLetters[1].ToString()
-    Write-Host $dataFilePath $logFilePath
+    $dataFilePath = "E:\DATA\"
+    $logFilePath = "F:\LOG\"
+    if (Test-Path $dataFilePath) {
+        Write-Host "$dataFilePath Folder exists."
+    } else {
+        Write-Host "$dataFilePath Folder does not exist. Creating"
+        $assignedDriveLetters = Initialize-SilkSdpDisks
+        $dataFilePath = "{0}\DATA\" -f $assignedDriveLetters[2].ToString()
+        $logFilePath = "{0}\LOG\" -f $assignedDriveLetters[3].ToString()
+        Write-Host $dataFilePath $logFilePath
+    }
 
     if (Test-SqlServerInstalled) {
         Write-Host "SQL Server is installed."
