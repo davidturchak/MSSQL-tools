@@ -9,8 +9,13 @@ $logFilePath = "F:\LOG\$DatabaseName.ldf"
 # Specify the new owner
 $newOwner = "flexadm"
 
+function Update-DiskOnline {
+    Get-Disk -Number 2 | Set-Disk -IsOffline $false
+    Get-Disk -Number 3 | Set-Disk -IsOffline $false
+
+}
 # Function to attach the database
-function Attach-SqlDatabase {
+function Set-AttachSqlDatabase {
     try {
         if ($dataFilePath) {
             # Connection string using Windows authentication
@@ -79,5 +84,6 @@ if ($dataFilePath -and $logFilePath) {
 
         Write-Host "Successfully updated security settings for $filePath"
     }
-    Attach-SqlDatabase
+
+    Set-AttachSqlDatabase
 }
