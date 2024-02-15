@@ -9,11 +9,83 @@ $logFilePath = "F:\LOG\$DatabaseName.ldf"
 # Specify the new owner
 $newOwner = "flexadm"
 
-function Update-DiskOnline {
-    Get-Disk -Number 2 | Set-Disk -IsOffline $false
-    Get-Disk -Number 3 | Set-Disk -IsOffline $false
 
+function Set-AssignDriveLetter {
+    param(
+        [string]$DiskNumber,
+        [string]$PartitionNumber,
+        [string]$DriveLetter
+    )
+
+    Write-Host "Assigning drive letter $DriveLetter to Disk $DiskNumber, Partition $PartitionNumber"
+    
+    $scriptBlock = @"
+select disk $DiskNumber
+select partition $PartitionNumber
+assign letter=$DriveLetter
+select volume 3
+attribute volume clear readonly
+select volume 4
+attribute volume clear readonly
+"@
+
+    Execute-DiskpartScriptBlock -ScriptBlock $scriptBlock
 }
+
+# Function to remove a drive letter using Diskpart
+function Remove-DriveLetter {
+    param(
+        [string]$DiskNumber,
+        [string]$PartitionNumber
+    )
+
+    Write-Host "Removing drive letter from Disk $DiskNumber, Partition $PartitionNumber"
+    
+    $scriptBlock = @"
+select disk $DiskNumber
+select partition $PartitionNumber
+remove
+"@
+
+    Execute-DiskpartScriptBlock -ScriptBlock $scriptBlock
+}
+
+# Function to execute a Diskpart script block
+function Execute-DiskpartScriptBlock {
+    param(
+        [string]$ScriptBlock
+    )
+
+    $scriptFilePath = [System.IO.Path]::GetTempFileName()
+    $ScriptBlock | Out-File -FilePath $scriptFilePath -Encoding ascii
+    $process = Start-Process diskpart -ArgumentList "/s `"$scriptFilePath`"" -PassThru -WindowStyle Hidden
+    $process.WaitForExit()
+}
+
+# Function to search for *.mdf and *.ldf files and reassign drive letters accordingly
+function Update-ReassignDriveLetters {
+    param(
+        [string]$DriveLetter,
+        [string]$DiskNumber
+    )
+
+    $mdfFiles = Get-ChildItem -Path "$DriveLetter\*" -Recurse -Filter *.mdf
+    if ($mdfFiles) {
+        Write-Host "Found *.mdf file: $($mdfFiles[0].FullName)"
+        Remove-DriveLetter -DiskNumber $DiskNumber -PartitionNumber 2
+        Set-AssignDriveLetter -DiskNumber $DiskNumber -PartitionNumber 2 -DriveLetter "E"
+        return
+    }
+
+    $ldfFiles = Get-ChildItem -Path "$DriveLetter\*" -Recurse -Filter *.ldf
+    if ($ldfFiles) {
+        Write-Host "Found *.ldf file: $($ldfFiles[0].FullName)"
+        Remove-DriveLetter -DiskNumber $DiskNumber -PartitionNumber 2
+        Set-AssignDriveLetter -DiskNumber $DiskNumber -PartitionNumber 2 -DriveLetter "F"
+        return
+    }
+}
+
 # Function to attach the database
 function Set-AttachSqlDatabase {
     try {
@@ -37,6 +109,13 @@ function Set-AttachSqlDatabase {
         Write-Error "Failed to attach database '$DatabaseName': $_"
     }
 }
+
+foreach ($disk in 2, 3) {
+    Get-Disk -Number $disk | Set-Disk -IsOffline $false
+    Set-AssignDriveLetter -DiskNumber $disk -PartitionNumber 2 -DriveLetter "Z"
+    Update-ReassignDriveLetters -DriveLetter "Z:" -DiskNumber $disk
+}
+
 
 if ($dataFilePath -and $logFilePath) {
     foreach ($filePath in $dataFilePath, $logFilePath) {
@@ -84,6 +163,5 @@ if ($dataFilePath -and $logFilePath) {
 
         Write-Host "Successfully updated security settings for $filePath"
     }
-
     Set-AttachSqlDatabase
 }
