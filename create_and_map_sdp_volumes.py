@@ -22,12 +22,13 @@ def main(sdp_ip, password, vol_prefix, host_obj):
         vg = ep.new("volume_groups", name=vol_prefix, quota=0).save() # no limit
         
         # getting a host object
-        host = ep.search('hosts', name=host_obj).hits
+        hosts = ep.search('hosts', name=host_obj).hits
 
         # if host object is not exist on SDP create it
-        if not host:
+        if not hosts:
             host = ep.new("hosts", name=host_obj, type="Linux").save()
-
+        else:
+            host = hosts[0]
         # creating vols
         for i in range(1):
             vol = ep.new("volumes", name="{}{}".format(vol_prefix, i+1), size=10*2**20, volume_group=vg).save()         
