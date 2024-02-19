@@ -7,7 +7,7 @@ import socket
 
 requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
-def main(sdp_ip, password, vol_prefix, host_obj):
+def main(sdp_ip, password, vol_prefix, host_obj, vol_num):
     try:
         # Check if SDP IP is a valid IP address
         socket.inet_aton(sdp_ip)
@@ -30,7 +30,7 @@ def main(sdp_ip, password, vol_prefix, host_obj):
         else:
             host = hosts[0]
         # creating vols
-        for i in range(1):
+        for i in range(vol_num):
             vol = ep.new("volumes", name="{}{}".format(vol_prefix, i+1), size=10*2**20, volume_group=vg).save()         
             mapping = ep.new("mappings", volume=vol, host=host).save()
     except Exception as e:
@@ -42,6 +42,7 @@ if __name__ == "__main__":
     parser.add_argument('--password', type=str, required=True, help='Password to connect to SDP')
     parser.add_argument('--host_obj', type=str, required=False, default=socket.gethostname(), help='Host object to map volumes to [default: hostname]')
     parser.add_argument('--vol_prefix', type=str, required=False, default='DEMO', help='Prefix for created objects [default: DEMO]')
+    parser.add_argument('--vol_num', type=int, required=False, default='4', help='Number of volumes to create [default: 4]')
     args = parser.parse_args()
 
-    main(args.sdp_ip, args.password, args.vol_prefix, args.host_obj)
+    main(args.sdp_ip, args.password, args.vol_prefix, args.host_obj, args.vol_num)
