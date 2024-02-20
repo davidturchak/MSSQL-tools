@@ -38,11 +38,11 @@ def main(sdp_ip, password, vol_prefix, host_obj, vol_num):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Script to do something.')
-    parser.add_argument('--sdp_ip', type=str, required=True, help='SDP floating or PMC IP to connect to')
-    parser.add_argument('--password', type=str, required=True, help='Password to connect to SDP')
-    parser.add_argument('--host_obj', type=str, required=False, default=socket.gethostname(), help='Host object to map volumes to [default: hostname]')
-    parser.add_argument('--vol_prefix', type=str, required=False, default='DEMO', help='Prefix for created objects [default: DEMO]')
-    parser.add_argument('--vol_num', type=int, required=False, default='4', help='Number of volumes to create [default: 4]')
+    parser.add_argument('--sdp_ip', '-s', type=str, required=True, help='SDP floating or PMC IP to connect to')
+    parser.add_argument('--password', '-p', type=str, required=True, help='Password to connect to SDP')
+    parser.add_argument('--host_obj', '-o', type=str, required=False, default=socket.gethostname(), help='Host object to map volumes to [default: hostname]')
+    parser.add_argument('--vol_prefix', '-f', type=str, required=False, default='DEMO', help='Prefix for created objects [default: DEMO]')
+    parser.add_argument('--vol_num', '-n', type=int, required=False, default=4, help='Number of volumes to create [default: 4]')
     args = parser.parse_args()
 
     main(args.sdp_ip, args.password, args.vol_prefix, args.host_obj, args.vol_num)
