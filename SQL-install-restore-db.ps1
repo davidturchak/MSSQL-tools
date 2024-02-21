@@ -18,8 +18,11 @@ function Install-SqlServer {
     param (
         [string]$ssmspath = "https://aka.ms/ssmsfullsetup",
         [string]$IsoPath = "https://download.microsoft.com/download/7/c/1/7c14e92e-bdcb-4f89-b7cf-93543e7112d1/SQLServer2019-x64-ENU-Dev.iso",
-        [string]$admuser = "`"$(whoami)`""
+        [string]$flexuser = "flexadm",
+        [string]$hostname = "`"$(hostname)`"",
+        [string]$admuser = "$hostname\$flexuser"
     )
+
 
     try {
         Add-Content -Path (Join-Path $dist 'ConfigurationFile.ini') -Value "`r`nSQLSYSADMINACCOUNTS=$admuser"
@@ -62,10 +65,12 @@ function Install-SqlServer {
 }
 
 function Restore-DB {
-
-    # Connection string using Windows authentication
-    $connectionString = "Server=$serverInstance;Database=master;Integrated Security=True;"
-
+    param (
+        [string]$sauser = "sa",
+        [string]$sapass = "P@ssword"
+    )
+    # Connection string using SQL authentication
+    $connectionString = "Server=$serverInstance;Database=master;User ID=$sauser;Password=$sapass;"
     # Check if data and log directories exist, create them if not
     if (-not (Test-Path $dataFilePath)) {
         Write-Host "Path $dataFilePath does not exist. Creating"
