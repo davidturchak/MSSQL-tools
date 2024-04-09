@@ -26,6 +26,14 @@ try {
 
     Write-Host "Password for 'sa' user changed successfully."
 
+    # Enable the 'sa' login
+    $enableSaQuery = "ALTER LOGIN sa ENABLE"
+    $enableSaCommand = $connection.CreateCommand()
+    $enableSaCommand.CommandText = $enableSaQuery
+    $enableSaCommand.ExecuteNonQuery()
+
+    Write-Host "'sa' user enabled successfully."
+
     # Modify authentication mode to both Windows and SQL Server Authentication
     $authModeQuery = "EXEC xp_instance_regwrite N'HKEY_LOCAL_MACHINE', N'Software\Microsoft\MSSQLServer\MSSQLServer', N'LoginMode', REG_DWORD, 2"
     $authModeCommand = $connection.CreateCommand()
