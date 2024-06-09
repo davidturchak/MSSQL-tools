@@ -88,10 +88,16 @@ function Update-ReassignDriveLetters {
 
 # Function to attach the database
 function Set-AttachSqlDatabase {
+    param (
+        [string]$sauser = "sa",
+        [string]$sapass = "P@ssword"
+    )
     try {
         if ($dataFilePath) {
+            # Connection string using SQL authentication
+            $connectionString = "Server=$serverInstance;Database=master;User ID=$sauser;Password=$sapass;"
             # Connection string using Windows authentication
-            $connectionString = "Server=$serverInstance;Database=master;Integrated Security=True;"
+            #$connectionString = "Server=$serverInstance;Database=master;Integrated Security=True;"
             # SQL query to restore database from backup
             $query = "CREATE DATABASE [$DatabaseName] ON ( FILENAME = N'$dataFilePath' ), ( FILENAME = N'$logFilePath' ) FOR ATTACH;"
             # Create SQL connection
