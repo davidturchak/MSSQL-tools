@@ -201,8 +201,8 @@ if ($PSBoundParameters.Count -gt 0) {
     } else {
         Write-Host "$dataFilePath Folder does not exist. Creating"
         $assignedDriveLetters = Initialize-SilkSdpDisks
-        $dataFilePath = "{0}\DATA\" -f $assignedDriveLetters[2].ToString()
-        $logFilePath = "{0}\LOG\" -f $assignedDriveLetters[3].ToString()
+        #$dataFilePath = "{0}\DATA\" -f $assignedDriveLetters[2].ToString()
+        #$logFilePath = "{0}\LOG\" -f $assignedDriveLetters[3].ToString()
         Write-Host $dataFilePath $logFilePath
     }
 
