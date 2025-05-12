@@ -1,9 +1,11 @@
 # Log file path
 $logFile = "C:\Temp\sql_connection_log.txt"
 
-# Log helper
+# Log helper function
 function Log {
-    param ([string]$message)
+    param (
+        [string]$message
+    )
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     "$timestamp - $message" | Out-File -Append -FilePath $logFile
 }
@@ -12,13 +14,13 @@ function Log {
 $connectionString = "Server=localhost;Database=master;User ID=sa;Password=P@ssword;"
 
 # Attempt connection with retries
-$maxRetries = 10
+$maxRetries = 3
 $retryDelaySeconds = 5
 $connected = $false
 
 for ($i = 1; $i -le $maxRetries; $i++) {
     try {
-        Log "Attempt $i: Trying to connect to SQL Server..."
+        Log ("Attempt ${i}: Trying to connect to SQL Server...")
         $connection = New-Object System.Data.SqlClient.SqlConnection
         $connection.ConnectionString = $connectionString
         $connection.Open()
@@ -26,7 +28,7 @@ for ($i = 1; $i -le $maxRetries; $i++) {
         $connected = $true
         break
     } catch {
-        Log "Connection failed on attempt $i. Error: $_"
+        Log ("Connection failed on attempt ${i}. Error: $_")
         if ($i -lt $maxRetries) {
             Start-Sleep -Seconds $retryDelaySeconds
         }
