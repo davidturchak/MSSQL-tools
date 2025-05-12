@@ -14,7 +14,7 @@ function Log {
 $connectionString = "Server=localhost;Database=master;User ID=sa;Password=P@ssword;"
 
 # Attempt connection with retries
-$maxRetries = 3
+$maxRetries = 10
 $retryDelaySeconds = 5
 $connected = $false
 
