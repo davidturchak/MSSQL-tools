@@ -41,7 +41,7 @@ function Wait-ForSqlReadyEventLog {
     )
     $startTime = Get-Date
     while ((Get-Date) -lt $startTime.AddSeconds($timeoutSeconds)) {
-        $event = Get-WinEvent -LogName "Application" -MaxEvents 30 |
+        $event = Get-WinEvent -LogName "Application" -MaxEvents 1000 |
             Where-Object {
                 $_.ProviderName -eq $instance -and
                 $_.Message -like "*SQL Server is now ready for client connections*"
