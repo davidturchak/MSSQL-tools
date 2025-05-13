@@ -14,7 +14,7 @@ function Log {
 function Wait-ForSqlService {
     param (
         [string]$serviceName = "MSSQLSERVER",
-        [int]$timeoutSeconds = 120
+        [int]$timeoutSeconds = 300
     )
 
     $startTime = Get-Date
@@ -73,7 +73,7 @@ if (-not (Wait-ForSqlService -serviceName "MSSQLSERVER" -timeoutSeconds 300)) {
 }
 
 # Step 2: Wait for event log message indicating SQL Server is ready
-if (-not (Wait-ForSqlReadyEventLog -instance "MSSQLSERVER" -timeoutSeconds 90)) {
+if (-not (Wait-ForSqlReadyEventLog -instance "MSSQLSERVER" -timeoutSeconds 300)) {
     Log "SQL Server not ready for connections (event log). Exiting script."
     exit 1
 }
