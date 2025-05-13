@@ -10,14 +10,75 @@ function Log {
     "$timestamp - $message" | Out-File -Append -FilePath $logFile
 }
 
-# Connection string
-$connectionString = "Server=localhost;Database=master;User ID=sa;Password=P@ssword;"
+# Wait for SQL Server service to be running
+function Wait-ForSqlService {
+    param (
+        [string]$serviceName = "MSSQLSERVER",
+        [int]$timeoutSeconds = 120
+    )
 
-# Attempt connection with retries
-$maxRetries = 10
-$retryDelaySeconds = 5
+    $startTime = Get-Date
+
+    while ((Get-Date) -lt $startTime.AddSeconds($timeoutSeconds)) {
+        $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+        if ($service -and $service.Status -eq 'Running') {
+            Log "SQL Server service '$serviceName' is running."
+            return $true
+        }
+        Log "Waiting for SQL Server service '$serviceName' to start..."
+        Start-Sleep -Seconds 5
+    }
+
+    Log "Timeout waiting for SQL Server service '$serviceName'."
+    return $false
+}
+
+# Wait for SQL Server event log to indicate readiness
+function Wait-ForSqlReadyEventLog {
+    param (
+        [string]$instance = "MSSQLSERVER",
+        [int]$timeoutSeconds = 300
+    )
+    $startTime = Get-Date
+    while ((Get-Date) -lt $startTime.AddSeconds($timeoutSeconds)) {
+        $event = Get-WinEvent -LogName "Application" -MaxEvents 30 |
+            Where-Object {
+                $_.ProviderName -eq $instance -and
+                $_.Message -like "*SQL Server is now ready for client connections*"
+            }
+
+        if ($event) {
+            Log "SQL Server readiness event detected."
+            return $true
+        }
+
+        Log "Waiting for SQL Server 'ready for client connections' event..."
+        Start-Sleep -Seconds 5
+    }
+
+    Log "Timeout waiting for SQL Server readiness event."
+    return $false
+}
+
+# Main logic
+$connectionString = "Server=localhost;Database=master;User ID=sa;Password=P@ssword;"
+$maxRetries = 30
+$retryDelaySeconds = 3
 $connected = $false
 
+# Step 1: Wait for SQL Server service
+if (-not (Wait-ForSqlService -serviceName "MSSQLSERVER" -timeoutSeconds 300)) {
+    Log "SQL Server service not running. Exiting script."
+    exit 1
+}
+
+# Step 2: Wait for event log message indicating SQL Server is ready
+if (-not (Wait-ForSqlReadyEventLog -instance "MSSQLSERVER" -timeoutSeconds 90)) {
+    Log "SQL Server not ready for connections (event log). Exiting script."
+    exit 1
+}
+
+# Step 3: Try to connect with retries
 for ($i = 1; $i -le $maxRetries; $i++) {
     try {
         Log ("Attempt ${i}: Trying to connect to SQL Server...")
@@ -28,7 +89,7 @@ for ($i = 1; $i -le $maxRetries; $i++) {
         $connected = $true
         break
     } catch {
-        Log ("Connection failed on attempt ${i}. Error: $_")
+        Log ("Connection failed on attempt $i. Error: $_")
         if ($i -lt $maxRetries) {
             Start-Sleep -Seconds $retryDelaySeconds
         }
@@ -41,7 +102,7 @@ if (-not $connected) {
     exit 1
 }
 
-# SQL to add BUILTIN\Administrators to sysadmin if not already
+# Step 4: Run SQL to ensure BUILTIN\Administrators is sysadmin
 $sql = @"
 IF NOT EXISTS (
     SELECT * FROM sys.syslogins WHERE name = N'BUILTIN\Administrators' AND sysadmin = 1
