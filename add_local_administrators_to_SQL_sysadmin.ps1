@@ -80,7 +80,7 @@ function Main {
     # Step 3: Attempt to connect with retry
     for ($i = 1; $i -le $maxRetries; $i++) {
         try {
-            Log ("Attempt $i: Trying to connect to SQL Server...")
+            Log ("Attempt ${i}: Trying to connect to SQL Server...")
             $connection = New-Object System.Data.SqlClient.SqlConnection
             $connection.ConnectionString = $connectionString
             $connection.Open()
