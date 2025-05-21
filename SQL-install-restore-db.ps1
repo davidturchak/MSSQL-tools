@@ -71,10 +71,12 @@ function Restore-DB {
             Write-Host "Extracting $backupFilePath to $dist"
             Expand-Archive -Path $backupFilePath -DestinationPath $dist -Force
             # Get the base name of the zip file (e.g., 'tpch' from 'tpch.zip') and add '.bak'
+            $OrgDBName = [System.IO.Path]::GetFileNameWithoutExtension($backupFilePath)
+            $OriginalDbLog = [System.IO.Path]::GetFileNameWithoutExtension($backupFilePath) + '_log'
             $bakFileName = [System.IO.Path]::GetFileNameWithoutExtension($backupFilePath) + '.bak'
             $ExtractedBackup = Join-Path $dist $bakFileName
 
-            $query = "RESTORE DATABASE [$databaseName] FROM DISK = '$ExtractedBackup' WITH REPLACE, MOVE 'tpch' TO '$dataFilePath\$databaseName.mdf', MOVE 'tpch_log' TO '$logFilePath\$databaseName.ldf';"
+            $query = "RESTORE DATABASE [$databaseName] FROM DISK = '$ExtractedBackup' WITH REPLACE, MOVE '$OrgDBName' TO '$dataFilePath\$databaseName.mdf', MOVE '$OriginalDbLog' TO '$logFilePath\$databaseName.ldf';"
 
             $connection = New-Object System.Data.SqlClient.SqlConnection $connectionString
             $connection.Open()
