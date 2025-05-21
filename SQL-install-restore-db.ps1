@@ -70,7 +70,9 @@ function Restore-DB {
         if ($backupFilePath) {
             Write-Host "Extracting $backupFilePath to $dist"
             Expand-Archive -Path $backupFilePath -DestinationPath $dist -Force
-            $ExtractedBackup = Join-Path $dist 'tpch.bak'
+            # Get the base name of the zip file (e.g., 'tpch' from 'tpch.zip') and add '.bak'
+            $bakFileName = [System.IO.Path]::GetFileNameWithoutExtension($backupFilePath) + '.bak'
+            $ExtractedBackup = Join-Path $dist $bakFileName
 
             $query = "RESTORE DATABASE [$databaseName] FROM DISK = '$ExtractedBackup' WITH REPLACE, MOVE 'tpch' TO '$dataFilePath\$databaseName.mdf', MOVE 'tpch_log' TO '$logFilePath\$databaseName.ldf';"
 
