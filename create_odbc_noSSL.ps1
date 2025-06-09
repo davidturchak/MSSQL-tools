@@ -3,7 +3,7 @@ $DSNName = "noSSLTest"
 $DriverName = "SQL Server"
 $Server = "localhost"
 $UID = "sa"
-$PWD = "P@ssword"
+$SUPWD = "P@ssword"
 
 # Registry paths (64-bit ODBC)
 $regPath = "HKLM:\SOFTWARE\ODBC\ODBC.INI\$DSNName"
@@ -18,7 +18,7 @@ Set-ItemProperty -Path $regPath -Name "Database" -Value ""
 Set-ItemProperty -Path $regPath -Name "LastUser" -Value $UID
 Set-ItemProperty -Path $regPath -Name "Trusted_Connection" -Value "No"
 Set-ItemProperty -Path $regPath -Name "UID" -Value $UID
-Set-ItemProperty -Path $regPath -Name "PWD" -Value $PWD
+Set-ItemProperty -Path $regPath -Name "PWD" -Value $SUPWD
 Set-ItemProperty -Path $regPath -Name "Driver" -Value "C:\Windows\System32\SQLSRV32.dll"
 
 # Register the DSN under the list of ODBC Data Sources
