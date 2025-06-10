@@ -41,7 +41,7 @@ $regPath = "HKLM:\SOFTWARE\ODBC\ODBC.INI\$DSNName"
 
 # Check if DSN  exists
 if (-not (Test-Path $regPath)) {
-    Write-Host "DSN '$DSNName' does not exists. Run create_odbc_noSSL.ps1 to create it."
+    Write-Error "DSN '$DSNName' does not exist. Run create_odbc_noSSL.ps1 to create it."
     exit 1
 } else {
 
