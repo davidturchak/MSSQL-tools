@@ -1,62 +1,52 @@
 <#
 .SYNOPSIS
-Runs a parameterized Ostress.exe command to execute a SQL Server load test.
+Runs Ostress.exe via cmd.exe with specified parameters.
 
 .DESCRIPTION
-This script constructs and runs an Ostress.exe command using input parameters
-for test duration, read ratio, number of users, and repeat count.
+This script builds a command line for Ostress.exe and launches it through cmd.exe.
 
 .PARAMETER TestDuration
-Specifies the test duration in minutes for the @TestDuration_Minutes parameter.
+Test duration in minutes for @TestDuration_Minutes.
 
 .PARAMETER ReadRatio
-Specifies the read ratio for the @ReadRatio parameter.
+Read ratio for @ReadRatio.
 
 .PARAMETER NumberOfUsers
-Specifies the number of users for the -n parameter.
+Number of users passed to -n.
 
 .PARAMETER Repeat
-Specifies how many times the test should repeat, passed to the -r parameter.
+Number of repetitions passed to -r.
 
 .EXAMPLE
 .\Run-OstressTest.ps1 -TestDuration 5 -ReadRatio 50 -NumberOfUsers 200 -Repeat 2
-
-.NOTES
-Ostress.exe must be installed in "C:\Program Files\Microsoft Corporation\RMLUtils"
 #>
 
 param (
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [int]$TestDuration,
 
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [int]$ReadRatio,
 
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [int]$NumberOfUsers,
 
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [int]$Repeat
 )
 
 # Path to OStress executable
-$ostressPath = "C:\Program Files\Microsoft Corporation\RMLUtils\Ostress.exe"
+$ostressPath = '"C:\Program Files\Microsoft Corporation\RMLUtils\Ostress.exe"'
 
-# Validate that the executable exists
-if (-not (Test-Path $ostressPath)) {
-    Write-Error "Ostress.exe not found at '$ostressPath'. Please verify the installation path."
-    exit 1
-}
-
-# Construct the SQL query
+# Construct SQL query string (escaped for cmd)
 $sqlQuery = "EXECUTE dbo.RunTest @ReadRatio = $ReadRatio , @TestDuration_Minutes = $TestDuration;"
 
-# Build the command string
-$command = "`"$ostressPath`" -DNoSSLTest -E -dTestDB_2GB -Q`"$sqlQuery`" -n$NumberOfUsers -r$Repeat"
+# Build the full command line for cmd.exe
+$cmdCommand = "$ostressPath -DNoSSLTest -E -dTestDB_2G -Q`"$sqlQuery`" -n$NumberOfUsers -r$Repeat"
 
-# Output the command
-Write-Host "Running command:"
-Write-Host $command
+# Output the command to verify
+Write-Host "Running in cmd.exe:"
+Write-Host $cmdCommand
 
-# Run the command
-Invoke-Expression $command
+# Start cmd.exe and run the command
+Start-Process cmd.exe -ArgumentList "/c $cmdCommand" -Wait
