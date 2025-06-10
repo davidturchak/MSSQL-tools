@@ -50,7 +50,7 @@ $ostressExe = 'C:\Program Files\Microsoft Corporation\RMLUtils\Ostress.exe'
 $sqlQuery = "EXECUTE dbo.RunTest @ReadRatio = $ReadRatio , @TestDuration_Minutes = $TestDuration;"
 
 # Properly quote the full command for CMD
-$quotedCommand = "`"$ostressExe`" -D$DSNName -E -dTestDB_2G -Q`"$sqlQuery`" -n$NumberOfUsers -r$Repeat"
+$quotedCommand = "`"$ostressExe`" -D$DSNName -E -dTestDB_2GB -Q`"$sqlQuery`" -n$NumberOfUsers -r$Repeat"
 
 # Wrap the entire command again for cmd.exe
 $finalCommand = "/c `"$quotedCommand`""
