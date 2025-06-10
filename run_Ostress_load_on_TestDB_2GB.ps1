@@ -1,24 +1,24 @@
 <#
 .SYNOPSIS
-Runs Ostress.exe via cmd.exe with specified parameters.
+Runs Ostress.exe using cmd.exe with correct parameter quoting.
 
 .DESCRIPTION
-This script builds a command line for Ostress.exe and launches it through cmd.exe.
+This script builds and runs a properly quoted Ostress.exe command inside cmd.exe.
 
 .PARAMETER TestDuration
-Test duration in minutes for @TestDuration_Minutes.
+Test duration in minutes.
 
 .PARAMETER ReadRatio
-Read ratio for @ReadRatio.
+Read ratio to simulate read/write mix.
 
 .PARAMETER NumberOfUsers
-Number of users passed to -n.
+Number of concurrent users (-n).
 
 .PARAMETER Repeat
-Number of repetitions passed to -r.
+Repeat count for the load test (-r).
 
 .EXAMPLE
-.\Run-OstressTest.ps1 -TestDuration 5 -ReadRatio 50 -NumberOfUsers 200 -Repeat 2
+.\Run-OstressTest.ps1 -TestDuration 1 -ReadRatio 0 -NumberOfUsers 1 -Repeat 1
 #>
 
 param (
@@ -35,18 +35,19 @@ param (
     [int]$Repeat
 )
 
-# Path to OStress executable
-$ostressPath = '"C:\Program Files\Microsoft Corporation\RMLUtils\Ostress.exe"'
-
-# Construct SQL query string (escaped for cmd)
+# Define variables
+$ostressExe = 'C:\Program Files\Microsoft Corporation\RMLUtils\Ostress.exe'
 $sqlQuery = "EXECUTE dbo.RunTest @ReadRatio = $ReadRatio , @TestDuration_Minutes = $TestDuration;"
 
-# Build the full command line for cmd.exe
-$cmdCommand = "$ostressPath -DNoSSLTest -E -dTestDB_2G -Q`"$sqlQuery`" -n$NumberOfUsers -r$Repeat"
+# Properly quote the full command for CMD
+$quotedCommand = "`"$ostressExe`" -DNoSSLTest -E -dTestDB_2G -Q`"$sqlQuery`" -n$NumberOfUsers -r$Repeat"
 
-# Output the command to verify
-Write-Host "Running in cmd.exe:"
-Write-Host $cmdCommand
+# Wrap the entire command again for cmd.exe
+$finalCommand = "/c `"$quotedCommand`""
 
-# Start cmd.exe and run the command
-Start-Process cmd.exe -ArgumentList "/c $cmdCommand" -Wait
+# Print for debugging
+Write-Host "Executing command via cmd.exe:"
+Write-Host $finalCommand
+
+# Run in cmd
+Start-Process -FilePath "cmd.exe" -ArgumentList $finalCommand -Wait
