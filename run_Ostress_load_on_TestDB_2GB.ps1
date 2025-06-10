@@ -35,12 +35,22 @@ param (
     [int]$Repeat
 )
 
+$DSNName = "noSSLTest"
+# Registry paths (64-bit ODBC)
+$regPath = "HKLM:\SOFTWARE\ODBC\ODBC.INI\$DSNName"
+
+# Check if DSN  exists
+if (-not (Test-Path $regPath)) {
+    Write-Host "DSN '$DSNName' does not exists. Run create_odbc_noSSL.ps1 to create it."
+    exit 1
+} else {
+
 # Define variables
 $ostressExe = 'C:\Program Files\Microsoft Corporation\RMLUtils\Ostress.exe'
 $sqlQuery = "EXECUTE dbo.RunTest @ReadRatio = $ReadRatio , @TestDuration_Minutes = $TestDuration;"
 
 # Properly quote the full command for CMD
-$quotedCommand = "`"$ostressExe`" -DNoSSLTest -E -dTestDB_2G -Q`"$sqlQuery`" -n$NumberOfUsers -r$Repeat"
+$quotedCommand = "`"$ostressExe`" -D$DSNName -E -dTestDB_2G -Q`"$sqlQuery`" -n$NumberOfUsers -r$Repeat"
 
 # Wrap the entire command again for cmd.exe
 $finalCommand = "/c `"$quotedCommand`""
@@ -51,3 +61,4 @@ Write-Host $finalCommand
 
 # Run in cmd
 Start-Process -FilePath "cmd.exe" -ArgumentList $finalCommand -Wait
+}
