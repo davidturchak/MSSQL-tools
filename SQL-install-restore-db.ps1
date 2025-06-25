@@ -120,7 +120,7 @@ function Restore-Database {
     [CmdletBinding()]
     param (
         [string]$SaUser = "sa",
-        [string]$SaPassword = "P@ssw0rd",
+        [string]$SaPassword = "P@ssword",
         [string]$DataPath,
         [string]$LogPath
     )
