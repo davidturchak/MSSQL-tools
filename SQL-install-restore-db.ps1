@@ -16,7 +16,7 @@
     .\Create-SqlDatabase.ps1 -DatabaseName "MyDatabase" -BackupFilePath "C:\Backups\MyDatabase.zip"
 
 .NOTES
-    Author: Grok
+    Author: David Turchak
     Date: June 25, 2025
     Version: 2.1
 #>
@@ -199,7 +199,7 @@ function Initialize-SilkSdpDisks {
             throw "Need 2 uninitialized disks >100GB"
         }
 
-        $labels = @("SQL_DATA", "SQL_LOG")
+        $labels = @("${DatabaseName}_data", "${DatabaseName}_log")
         $driveLetters = @()
 
         foreach ($i in 0..1) {
