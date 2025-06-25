@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     This script installs SQL Server if not present, initializes disks for SQL data and logs,
-    and restores a specified database from a backup file.
+    and restores a specified database from a backup file. Logs are saved to a file and output to the console at the end.
 
 .PARAMETER DatabaseName
     The name of the database to restore.
@@ -16,9 +16,9 @@
     .\Create-SqlDatabase.ps1 -DatabaseName "MyDatabase" -BackupFilePath "C:\Backups\MyDatabase.zip"
 
 .NOTES
-    Author: David Turchak
+    Author: Grok
     Date: June 25, 2025
-    Version: 2.0
+    Version: 2.1
 #>
 
 [CmdletBinding()]
@@ -274,4 +274,13 @@ catch {
 }
 finally {
     Write-Log "Script execution ended"
+    # Output log file contents to console
+    if (Test-Path $script:LogFile) {
+        Write-Host "`n=== Log File Contents ($($script:LogFile)) ==="
+        Get-Content -Path $script:LogFile | ForEach-Object { Write-Host $_ }
+        Write-Host "=== End of Log ==="
+    }
+    else {
+        Write-Host "`nNo log file found at $($script:LogFile)"
+    }
 }
