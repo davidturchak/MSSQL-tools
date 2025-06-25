@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Automates SQL Server installation and database restoration with disk initialization.
+    Automates SQL Server installation and database restoration with 2 SDP disks initialization.
 
 .DESCRIPTION
     This script installs SQL Server if not present, initializes disks for SQL data and logs,
