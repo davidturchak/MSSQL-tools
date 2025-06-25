@@ -1,184 +1,277 @@
+<#
+.SYNOPSIS
+    Automates SQL Server installation and database restoration with disk initialization.
+
+.DESCRIPTION
+    This script installs SQL Server if not present, initializes disks for SQL data and logs,
+    and restores a specified database from a backup file.
+
+.PARAMETER DatabaseName
+    The name of the database to restore.
+
+.PARAMETER BackupFilePath
+    Path to the database backup file (.zip). Default: C:\tools\SQLSTF\tpch.zip
+
+.EXAMPLE
+    .\Create-SqlDatabase.ps1 -DatabaseName "MyDatabase" -BackupFilePath "C:\Backups\MyDatabase.zip"
+
+.NOTES
+    Author: David Turchak
+    Date: June 25, 2025
+    Version: 2.0
+#>
+
+[CmdletBinding()]
 param (
-    [string]$databaseName,
-    [string]$backupFilePath = "C:\tools\SQLSTF\tpch.zip"
+    [Parameter(Mandatory=$false)]
+    [ValidateNotNullOrEmpty()]
+    [string]$DatabaseName,
+
+    [Parameter(Mandatory=$false)]
+    [ValidateScript({Test-Path $_ -PathType Leaf})]
+    [string]$BackupFilePath = "C:\tools\SQLSTF\tpch.zip"
 )
 
-$dist = "C:\Tools\SQLSTF\"
-$serverInstance = $env:COMPUTERNAME
+# Global variables
+$script:LogFile = Join-Path $env:TEMP "SqlSetup_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+$script:DistPath = "C:\Tools\SQLSTF\"
+$script:ServerInstance = $env:COMPUTERNAME
 
+# Logging function
+function Write-Log {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$Message,
+        [ValidateSet("INFO", "WARNING", "ERROR")]
+        [string]$Level = "INFO"
+    )
+    $logMessage = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [$Level] $Message"
+    Write-Verbose $logMessage
+    Add-Content -Path $script:LogFile -Value $logMessage
+}
+
+# Help display function
 function Show-Help {
-    Write-Host "Usage: Create-SqlDatabase.ps1 [-databaseName <DatabaseName>] [-backupFilePath <BackupFilePath>]"
+    Get-Help $PSCommandPath
     exit 1
 }
 
+# SQL Server installation function
 function Install-SqlServer {
+    [CmdletBinding()]
     param (
-        [string]$ssmspath = "https://aka.ms/ssmsfullsetup",
-        [string]$IsoPath = "https://download.microsoft.com/download/7/c/1/7c14e92e-bdcb-4f89-b7cf-93543e7112d1/SQLServer2019-x64-ENU-Dev.iso",
-        [string]$flexuser = "flexadm",
-        [string]$hostname = "`"$(hostname)`"",
-        [string]$admuser = "$hostname\$flexuser"
+        [string]$SsmsUrl = "https://aka.ms/ssmsfullsetup",
+        [string]$IsoUrl = "https://download.microsoft.com/download/7/c/1/7c14e92e-bdcb-4f89-b7cf-93543e7112d1/SQLServer2019-x64-ENU-Dev.iso",
+        [string]$FlexUser = "flexadm"
     )
 
+    Write-Log "Starting SQL Server installation"
+    
     try {
-        Add-Content -Path (Join-Path $dist 'ConfigurationFile.ini') -Value "`r`nSQLSYSADMINACCOUNTS=$admuser"
-        Start-Sleep -Seconds 2
-        $isoimg = Join-Path $dist 'SQLServer2019-x64-ENU-Dev.iso'
+        # Create distribution directory if it doesn't exist
+        New-Item -ItemType Directory -Path $script:DistPath -Force | Out-Null
+        
+        # Prepare configuration file
+        $configFile = Join-Path $script:DistPath 'ConfigurationFile.ini'
+        $admUser = "$($env:COMPUTERNAME)\$FlexUser"
+        Add-Content -Path $configFile -Value "`r`nSQLSYSADMINACCOUNTS=$admUser" -ErrorAction Stop
 
-        if (-not (Test-Path $isoimg)) {
-            Start-BitsTransfer -Source $IsoPath -Destination $dist
+        # Download and mount SQL Server ISO
+        $isoPath = Join-Path $script:DistPath 'SQLServer2019-x64-ENU-Dev.iso'
+        if (-not (Test-Path $isoPath)) {
+            Write-Log "Downloading SQL Server ISO"
+            Start-BitsTransfer -Source $IsoUrl -Destination $isoPath -ErrorAction Stop
         }
 
-        $volume = Mount-DiskImage $isoimg -StorageType ISO -PassThru | Get-Volume
-        $sql_drive = $volume.DriveLetter + ':'
+        Write-Log "Mounting ISO image"
+        $volume = Mount-DiskImage $isoPath -StorageType ISO -PassThru -ErrorAction Stop | Get-Volume
+        $sqlDrive = "$($volume.DriveLetter):"
 
-        Start-Process (Join-Path $sql_drive 'setup.exe') -ArgumentList "/ConfigurationFile=$dist\ConfigurationFile.ini" -NoNewWindow -Wait
-        Dismount-DiskImage $isoimg
+        # Install SQL Server
+        Write-Log "Installing SQL Server"
+        Start-Process -FilePath (Join-Path $sqlDrive 'setup.exe') `
+            -ArgumentList "/ConfigurationFile=$configFile /QUIET /IACCEPTSQLSERVERLICENSETERMS" `
+            -NoNewWindow -Wait -ErrorAction Stop
 
-        $setupfile = Join-Path $dist 'ssmsfullsetup.exe'
-        if (-not (Test-Path $setupfile)) {
-            Start-BitsTransfer -Source $ssmspath -Destination $setupfile
+        # Cleanup
+        Dismount-DiskImage $isoPath -ErrorAction Stop
+
+        # Install SSMS
+        $ssmsPath = Join-Path $script:DistPath 'ssmsfullsetup.exe'
+        if (-not (Test-Path $ssmsPath)) {
+            Write-Log "Downloading SSMS"
+            Start-BitsTransfer -Source $SsmsUrl -Destination $ssmsPath -ErrorAction Stop
         }
 
-        Start-Process $setupfile -ArgumentList "/install", "/quiet", "/norestart" -NoNewWindow -Wait
+        Write-Log "Installing SSMS"
+        Start-Process -FilePath $ssmsPath -ArgumentList "/install /quiet /norestart" `
+            -NoNewWindow -Wait -ErrorAction Stop
+
+        Write-Log "SQL Server installation completed successfully"
     }
     catch {
-        Write-Error "Install failed: $_"
-        exit 1
+        Write-Log "Installation failed: $($_.Exception.Message)" -Level ERROR
+        throw
     }
 }
 
-function Restore-DB {
+# Database restoration function
+function Restore-Database {
+    [CmdletBinding()]
     param (
-        [string]$sauser = "sa",
-        [string]$sapass = "P@ssword"
+        [string]$SaUser = "sa",
+        [string]$SaPassword = "P@ssw0rd",
+        [string]$DataPath,
+        [string]$LogPath
     )
 
-    $connectionString = "Server=$serverInstance;Database=master;User ID=$sauser;Password=$sapass;"
-
-    if (-not (Test-Path $dataFilePath)) {
-        Write-Host "Creating $dataFilePath"
-        New-Item -ItemType Directory -Path $dataFilePath -Force | Out-Null
-    }
-
-    if (-not (Test-Path $logFilePath)) {
-        Write-Host "Creating $logFilePath"
-        New-Item -ItemType Directory -Path $logFilePath -Force | Out-Null
-    }
+    Write-Log "Starting database restore for '$DatabaseName'"
 
     try {
-        if ($backupFilePath) {
-            Write-Host "Extracting $backupFilePath to $dist"
-            Expand-Archive -Path $backupFilePath -DestinationPath $dist -Force
-            # Get the base name of the zip file (e.g., 'tpch' from 'tpch.zip') and add '.bak'
-            $OrgDBName = [System.IO.Path]::GetFileNameWithoutExtension($backupFilePath)
-            $OriginalDbLog = [System.IO.Path]::GetFileNameWithoutExtension($backupFilePath) + '_log'
-            $bakFileName = [System.IO.Path]::GetFileNameWithoutExtension($backupFilePath) + '.bak'
-            $ExtractedBackup = Join-Path $dist $bakFileName
+        $connectionString = "Server=$script:ServerInstance;Database=master;User ID=$SaUser;Password=$SaPassword;"
+        
+        # Create data and log directories
+        foreach ($path in @($DataPath, $LogPath)) {
+            if (-not (Test-Path $path)) {
+                Write-Log "Creating directory: $path"
+                New-Item -ItemType Directory -Path $path -Force -ErrorAction Stop | Out-Null
+            }
+        }
 
-            $query = "RESTORE DATABASE [$databaseName] FROM DISK = '$ExtractedBackup' WITH REPLACE, MOVE '$OrgDBName' TO '$dataFilePath\$databaseName.mdf', MOVE '$OriginalDbLog' TO '$logFilePath\$databaseName.ldf';"
+        if (Test-Path $BackupFilePath) {
+            Write-Log "Extracting backup file: $BackupFilePath"
+            $extractPath = Join-Path $script:DistPath ([System.IO.Path]::GetFileNameWithoutExtension($BackupFilePath))
+            Expand-Archive -Path $BackupFilePath -DestinationPath $script:DistPath -Force -ErrorAction Stop
 
+            $bakFileName = [System.IO.Path]::GetFileNameWithoutExtension($BackupFilePath) + '.bak'
+            $extractedBackup = Join-Path $script:DistPath $bakFileName
+            $orgDbName = [System.IO.Path]::GetFileNameWithoutExtension($BackupFilePath)
+            $orgDbLog = "${orgDbName}_log"
+
+            $restoreQuery = @"
+RESTORE DATABASE [$DatabaseName] 
+FROM DISK = '$extractedBackup' 
+WITH REPLACE, 
+MOVE '$orgDbName' TO '$DataPath\$DatabaseName.mdf', 
+MOVE '$orgDbLog' TO '$LogPath\$DatabaseName.ldf';
+"@
+
+            Write-Log "Executing database restore"
             $connection = New-Object System.Data.SqlClient.SqlConnection $connectionString
             $connection.Open()
             $command = $connection.CreateCommand()
-            $command.CommandText = $query
-            $command.ExecuteNonQuery()
-            Write-Host "Database '$databaseName' restored successfully."
+            $command.CommandText = $restoreQuery
+            $command.ExecuteNonQuery() | Out-Null
+            Write-Log "Database '$DatabaseName' restored successfully"
         }
         else {
-            Write-Host "No backup file. Skipping restore."
+            Write-Log "No backup file provided. Skipping restore" -Level WARNING
         }
     }
     catch {
-        Write-Host "Restore failed: $_.Exception.Message"
+        Write-Log "Restore failed: $($_.Exception.Message)" -Level ERROR
+        throw
     }
     finally {
-        $connection.Close()
+        if ($connection.State -eq 'Open') {
+            $connection.Close()
+            $connection.Dispose()
+        }
     }
 }
 
-function Test-SqlServerInstalled {
+# SQL Server installation check function
+function Test-SqlServerInstallation {
     return (Get-Service -Name 'MSSQLSERVER' -ErrorAction SilentlyContinue) -ne $null
 }
 
+# Disk initialization function
 function Initialize-SilkSdpDisks {
-    Write-Host "Looking for two uninitialized disks >100GB..."
+    Write-Log "Initializing disks for SQL Server"
 
-    # Get uninitialized disks >100GB
-    $disks = Get-Disk | Where-Object {
-        $_.PartitionStyle -eq 'RAW' -and $_.Size -gt 100GB
-    }
+    try {
+        $disks = Get-Disk | Where-Object {
+            $_.PartitionStyle -eq 'RAW' -and $_.Size -gt 100GB
+        } | Select-Object -First 2
 
-    if ($disks.Count -lt 2) {
-        Write-Error "Error: Need 2 uninitialized disks >100GB. Found $($disks.Count)."
-        exit 1
-    }
-
-    $selectedDisks = $disks | Select-Object -First 2
-    $labels = @("SQL DATA", "SQL LOG")
-    $driveLetters = @()
-
-    for ($i = 0; $i -lt $selectedDisks.Count; $i++) {
-        $disk = $selectedDisks[$i]
-        Write-Host "Initializing disk $($disk.Number)..."
-
-        Initialize-Disk -Number $disk.Number -PartitionStyle GPT -PassThru -Confirm:$false | Out-Null
-        $partition = New-Partition -DiskNumber $disk.Number -UseMaximumSize -AssignDriveLetter |
-                     Format-Volume -FileSystem NTFS -AllocationUnitSize 64KB -NewFileSystemLabel $labels[$i] -Force -Confirm:$false
-
-        Start-Sleep 1
-        $drive = ($partition | Get-Volume).DriveLetter
-        if ($null -eq $drive) {
-            Write-Error "Failed to assign drive letter for $labels[$i]."
-            exit 1
+        if ($disks.Count -lt 2) {
+            Write-Log "Insufficient uninitialized disks (>100GB). Found: $($disks.Count)" -Level ERROR
+            throw "Need 2 uninitialized disks >100GB"
         }
 
-        $driveLetters += "$drive`:"
-    }
+        $labels = @("SQL_DATA", "SQL_LOG")
+        $driveLetters = @()
 
-    Write-Host "Assigned drives: $($driveLetters -join ', ')"
-    return $driveLetters
+        foreach ($i in 0..1) {
+            $disk = $disks[$i]
+            Write-Log "Initializing disk $($disk.Number)"
+            
+            Initialize-Disk -Number $disk.Number -PartitionStyle GPT -PassThru -ErrorAction Stop | Out-Null
+            $partition = New-Partition -DiskNumber $disk.Number -UseMaximumSize -AssignDriveLetter -ErrorAction Stop |
+                Format-Volume -FileSystem NTFS -AllocationUnitSize 64KB -NewFileSystemLabel $labels[$i] -Force -ErrorAction Stop
+
+            $drive = ($partition | Get-Volume).DriveLetter
+            if (-not $drive) {
+                Write-Log "Failed to assign drive letter for $($labels[$i])" -Level ERROR
+                throw "Drive letter assignment failed"
+            }
+            $driveLetters += "$drive`:"
+        }
+
+        Write-Log "Assigned drives: $($driveLetters -join ', ')"
+        return $driveLetters
+    }
+    catch {
+        Write-Log "Disk initialization failed: $($_.Exception.Message)" -Level ERROR
+        throw
+    }
 }
 
+# Main execution
+try {
+    Write-Log "Script execution started"
 
-# Main Logic
-if ($PSBoundParameters.Count -gt 0) {
-    if (-not $databaseName -or -not $backupFilePath) {
-        Write-Error "Error: Both -databaseName and -backupFilePath are required."
-        exit 1
+    if (-not $PSBoundParameters.ContainsKey('DatabaseName')) {
+        Show-Help
     }
 
-    $assignedDriveLetters = Initialize-SilkSdpDisks | Where-Object { $_ -match "^[A-Z]:" }
-
-    if ($assignedDriveLetters.Count -lt 2) {
-        Write-Error "Failed to assign 2 valid drive letters: $($assignedDriveLetters -join ', ')"
-        exit 1
+    # Validate parameters
+    if (-not $DatabaseName -or -not $BackupFilePath) {
+        Write-Log "Missing required parameters" -Level ERROR
+        throw "Both DatabaseName and BackupFilePath are required"
     }
 
-    $dataFilePath = Join-Path "$($assignedDriveLetters[0])\" "${databaseName}_data"
-    $logFilePath  = Join-Path "$($assignedDriveLetters[1])\" "${databaseName}_log"
+    # Initialize disks
+    $driveLetters = Initialize-SilkSdpDisks
+    $dataPath = Join-Path $driveLetters[0] "${DatabaseName}_data"
+    $logPath = Join-Path $driveLetters[1] "${DatabaseName}_log"
     
+    Write-Log "Data path: $dataPath"
+    Write-Log "Log path: $logPath"
 
-    Write-Host "Data path: $dataFilePath"
-    Write-Host "Log path:  $logFilePath"
-
-    if (Test-SqlServerInstalled) {
-        Restore-DB
-    } else {
+    # Install and restore
+    if (Test-SqlServerInstallation) {
+        Write-Log "SQL Server already installed"
+        Restore-Database -DataPath $dataPath -LogPath $logPath
+    }
+    else {
         Install-SqlServer
-        if (Test-SqlServerInstalled) {
-            Restore-DB
-        } else {
-            Write-Error "SQL install failed. Aborting."
-            exit 1
+        if (Test-SqlServerInstallation) {
+            Restore-Database -DataPath $dataPath -LogPath $logPath
+        }
+        else {
+            Write-Log "SQL Server installation verification failed" -Level ERROR
+            throw "SQL Server installation failed"
         }
     }
+
+    Write-Log "Script execution completed successfully"
+    exit 0
 }
-else {
-    if (Test-SqlServerInstalled) {
-        Write-Host "SQL Server is already installed."
-    } else {
-        Install-SqlServer
-    }
+catch {
+    Write-Log "Script execution failed: $($_.Exception.Message)" -Level ERROR
+    exit 1
 }
-exit 0
+finally {
+    Write-Log "Script execution ended"
+}
